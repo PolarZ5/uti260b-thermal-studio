@@ -6,7 +6,7 @@ import time
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
 from PyQt6.QtGui import QColor, QKeySequence, QShortcut
-from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame,
+from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QSpinBox,
                              QGridLayout, QHBoxLayout, QHeaderView, QLabel, QMainWindow, QMenu,
                              QMessageBox, QPushButton, QRadioButton, QScrollArea, QSplitter, QTableWidget,
                              QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout, QWidget)
@@ -267,6 +267,8 @@ class MainWindow(QMainWindow):
         hh.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         hh.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self.spot_table.setColumnWidth(3, 36)
+        self.spot_table.cellClicked.connect(self._edit_spot_pos)
+        self._editing_slot = None
         sl.addWidget(self.spot_table)
         self.lb_spot_hint = hint("คลิกบนภาพเพื่อเพิ่มจุดวัด (สูงสุด 6 จุด)")
         sl.addWidget(self.lb_spot_hint)
@@ -706,6 +708,7 @@ class MainWindow(QMainWindow):
         else:
             note = ""
         return Overlay(m=self.m, spots=list(self.spots), roi=self.roi, masks=list(self.decoder.exclude_rects),
+                       highlight=self._editing_slot,
                        show_hot=self.chk_hot.isChecked(), show_cold=self.chk_cold.isChecked(),
                        show_center=self.chk_center.isChecked(), unit=self.unit,
                        lut=display_palette(palette_for(f, pal)), span=(lo, hi), alarm=self.alarm, note=note)
@@ -754,18 +757,65 @@ class MainWindow(QMainWindow):
             name = QTableWidgetItem(f"● P{sp.slot}")
             name.setForeground(QColor(COLORS[f"P{sp.slot}"]))
             tb.setItem(r, 0, name)
-            tb.setItem(r, 1, QTableWidgetItem(f"({sp.x}, {sp.y})"))
+            tb.removeCellWidget(r, 1)                    # drop an open X/Y editor
+            pos = QTableWidgetItem(f"({sp.x}, {sp.y})  ✎")
+            pos.setForeground(QColor(ACCENT))
+            pos.setToolTip("คลิกเพื่อแก้ตำแหน่ง")
+            tb.setItem(r, 1, pos)
             tb.setItem(r, 2, QTableWidgetItem("--"))
             b = QToolButton()
             b.setIcon(icon("trash", MUTED, 14))
             b.setToolTip(f"ลบจุด P{sp.slot}")
             b.clicked.connect(lambda _, s=sp.slot: self.remove_spot(s))
             tb.setCellWidget(r, 3, b)
+        self._editing_slot = None
         tb.setVisible(bool(self.spots))
         tb.resizeRowsToContents()
         h = tb.horizontalHeader().sizeHint().height() + sum(tb.rowHeight(r) for r in range(tb.rowCount()))
         tb.setFixedHeight(h + 6)
         self.lb_spot_hint.setVisible(not self.spots)
+
+    def _edit_spot_pos(self, row, col):
+        """Clicking a spot's coordinates turns them into X/Y spin boxes (live move)."""
+        if col != 1 or row >= len(self.spots):
+            return
+        if self._editing_slot is not None:
+            self._rebuild_spot_table()
+        sp = self.spots[row]
+        h, w = self.frame.shape if self.frame is not None else (320, 240)
+        box = QWidget()
+        lay = QHBoxLayout(box)
+        lay.setContentsMargins(2, 1, 2, 1)
+        lay.setSpacing(3)
+        sx, sy = QSpinBox(), QSpinBox()
+        for s, v, hi, name in ((sx, sp.x, w - 1, "X"), (sy, sp.y, h - 1, "Y")):
+            s.setRange(0, hi)
+            s.setValue(v)
+            s.setPrefix(f"{name} ")
+            s.setToolTip("ลูกศรขึ้น/ลง หรือหมุนล้อเมาส์เพื่อเลื่อนทีละพิกเซล • Enter = ตกลง")
+            s.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
+            s.setMinimumWidth(56)
+            s.valueChanged.connect(lambda _=0, slot=sp.slot: self._move_spot(slot, sx.value(), sy.value()))
+            s.lineEdit().returnPressed.connect(self._rebuild_spot_table)
+            lay.addWidget(s)
+        ok = QToolButton()
+        ok.setIcon(icon("check", "#52d273", 14))
+        ok.setToolTip("ตกลง")
+        ok.clicked.connect(self._rebuild_spot_table)
+        lay.addWidget(ok)
+        self.spot_table.setCellWidget(row, 1, box)
+        self.spot_table.setRowHeight(row, max(self.spot_table.rowHeight(row), 30))
+        self._editing_slot = sp.slot
+        sx.setFocus()
+        sx.selectAll()
+        self._redraw()
+
+    def _move_spot(self, slot, x, y):
+        for sp in self.spots:
+            if sp.slot == slot:
+                sp.x, sp.y = int(x), int(y)
+        self.trend.set_spot_labels(self.spots)
+        self._process(new=False)
 
     def _check_alarm(self):
         m = self.m

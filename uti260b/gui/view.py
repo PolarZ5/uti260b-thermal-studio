@@ -39,6 +39,7 @@ class Overlay:
     note: str = ""
     drag: Optional[tuple] = None            # rect being dragged (image coords)
     drag_kind: str = "roi"
+    highlight: Optional[int] = None         # spot slot being edited
 
 
 def _label(p: QPainter, x, y, text, color, bounds: QRectF, bold=True):
@@ -164,6 +165,9 @@ def paint_scene(p: QPainter, W: float, H: float, image: Optional[QImage], ov: Ov
             p.drawEllipse(c, 5, 5)
             p.setPen(QPen(QColor(col), 1.8))
             p.drawEllipse(c, 5, 5)
+            if sp.slot == ov.highlight:
+                p.setPen(QPen(QColor(col), 1.4, Qt.PenStyle.DashLine))
+                p.drawEllipse(c, 11, 11)
             t = m.spots.get(sp.slot, (0, 0, None))[2]
             _label(p, c.x() + 8, c.y() - 9, f"P{sp.slot}  {fmt(t, u)}", col, rect)
     if ov.drag:
