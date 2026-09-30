@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QMenu, QWidget
 
 from ..measure import Measurement
 from .theme import BG, COLORS
+from ..i18n import tr
 
 BAR_W = 64          # room for the colour bar on the right
 
@@ -89,7 +90,7 @@ def paint_scene(p: QPainter, W: float, H: float, image: Optional[QImage], ov: Ov
     if image is None:
         p.setPen(QColor("#8b93a5"))
         p.drawText(QRectF(0, 0, W, H), Qt.AlignmentFlag.AlignCenter,
-                   "ยังไม่มีภาพ\nเชื่อมต่อกล้อง, เปิดโหมดสาธิต หรือเปิดไฟล์ BMP")
+                   tr("ยังไม่มีภาพ\nเชื่อมต่อกล้อง, เปิดโหมดสาธิต หรือเปิดไฟล์ BMP"))
         return None
     iw, ih = image.width(), image.height()
     avail_w = max(10.0, W - BAR_W)
@@ -156,7 +157,7 @@ def paint_scene(p: QPainter, W: float, H: float, image: Optional[QImage], ov: Ov
             p.drawPath(diamond)
             p.setPen(QPen(QColor(col), 1.6))
             p.drawPath(diamond)
-            _label(p, c.x() + 9, c.y() + 4, f"กล้อง P{n}  {fmt(t, u)}", col, rect)
+            _label(p, c.x() + 9, c.y() + 4, tr("กล้อง P{n}", n=n) + f"  {fmt(t, u)}", col, rect)
         for sp in ov.spots:
             c = P((sp.x, sp.y))
             col = COLORS[f"P{sp.slot}"]
@@ -358,9 +359,9 @@ class ThermalView(QWidget):
             if d[k] < 20:
                 near = self.ov.spots[k]
         if near:
-            menu.addAction(f"ลบจุด P{near.slot}", lambda: self.spotRemoved.emit(near.slot))
+            menu.addAction(tr("ลบจุด P{n}", n=near.slot), lambda: self.spotRemoved.emit(near.slot))
         if self.ov.roi:
-            menu.addAction("ลบกรอบ ROI", lambda: self.roiChanged.emit(None))
+            menu.addAction(tr("ลบกรอบ ROI"), lambda: self.roiChanged.emit(None))
         if not menu.actions():
             return
         menu.exec(e.globalPosition().toPoint())

@@ -13,15 +13,16 @@ from ..series import CAM_KEYS, SPOT_KEYS, SeriesRecorder
 from .capture import fmt_duration
 from .icons import icon
 from .theme import BORDER, CARD, COLORS, MUTED, PANEL, TEXT
+from ..i18n import tr
 
-NAMES = {"max": "Max", "min": "Min", "center": "Center", "mean": "เฉลี่ยทั้งภาพ",
-         "roi_max": "ROI max", "roi_min": "ROI min", "roi_mean": "ROI เฉลี่ย",
-         "cam1": "กล้อง P1", "cam2": "กล้อง P2", "cam3": "กล้อง P3"}
+NAMES = {"max": "Max", "min": "Min", "center": "Center", "mean": tr("เฉลี่ยทั้งภาพ"),
+         "roi_max": "ROI max", "roi_min": "ROI min", "roi_mean": tr("ROI เฉลี่ย"),
+         "cam1": tr("กล้อง P1"), "cam2": tr("กล้อง P2"), "cam3": tr("กล้อง P3")}
 DEFAULT_ON = {"max", "min", "center", *SPOT_KEYS, *CAM_KEYS}
 KEYS = ["max", "min", "center", "mean", "roi_max", "roi_min", "roi_mean", *SPOT_KEYS, *CAM_KEYS]
-INTERVALS = [("ทุกเฟรม", 0.0), ("0.2 วิ", 0.2), ("0.5 วิ", 0.5), ("1 วิ", 1.0), ("2 วิ", 2.0),
-             ("5 วิ", 5.0), ("10 วิ", 10.0), ("30 วิ", 30.0), ("1 นาที", 60.0)]
-WINDOWS = [("ทั้งหมด", None), ("1 นาที", 60), ("5 นาที", 300), ("15 นาที", 900), ("1 ชั่วโมง", 3600)]
+INTERVALS = [(tr("ทุกเฟรม"), 0.0), (tr("0.2 วิ"), 0.2), (tr("0.5 วิ"), 0.5), (tr("1 วิ"), 1.0), (tr("2 วิ"), 2.0),
+             (tr("5 วิ"), 5.0), (tr("10 วิ"), 10.0), (tr("30 วิ"), 30.0), (tr("1 นาที"), 60.0)]
+WINDOWS = [(tr("ทั้งหมด"), None), (tr("1 นาที"), 60), (tr("5 นาที"), 300), (tr("15 นาที"), 900), (tr("1 ชั่วโมง"), 3600)]
 
 
 class Chip(QPushButton):
@@ -50,7 +51,7 @@ class Chip(QPushButton):
     def _update_text(self, *_):
         on = self.isChecked()
         super().setText(("● " if on else "○ ") + self.label)
-        self.setToolTip(f"คลิกเพื่อ{'ซ่อน' if on else 'แสดง'}เส้น {self.label}")
+        self.setToolTip((tr("คลิกเพื่อซ่อนเส้น {name}", name=self.label) if on else tr("คลิกเพื่อแสดงเส้น {name}", name=self.label)))
 
 
 class TrendPanel(QWidget):
@@ -83,7 +84,7 @@ class TrendPanel(QWidget):
         title = QLabel()
         title.setPixmap(icon("chart", "#ff7a18", 18).pixmap(18, 18))
         h.addWidget(title)
-        t = QLabel("กราฟอุณหภูมิตามเวลา")
+        t = QLabel(tr("กราฟอุณหภูมิตามเวลา"))
         t.setStyleSheet("font-weight: 600;")
         h.addWidget(t)
         h.addSpacing(10)
@@ -91,7 +92,7 @@ class TrendPanel(QWidget):
         self.btn_rec = QPushButton()
         self.btn_rec.setIconSize(QSize(14, 14))
         self.btn_rec.clicked.connect(self.toggle_record)
-        self.btn_rec.setToolTip("บันทึกค่า Max / Min / จุดกลาง / จุดวัด ตามเวลา (Ctrl+L)")
+        self.btn_rec.setToolTip(tr("บันทึกค่า Max / Min / จุดกลาง / จุดวัด ตามเวลา (Ctrl+L)"))
         self.btn_pause = QPushButton()
         self.btn_pause.setIconSize(QSize(14, 14))
         self.btn_pause.clicked.connect(self.toggle_pause)
@@ -99,22 +100,22 @@ class TrendPanel(QWidget):
         for text, v in INTERVALS:
             self.cb_interval.addItem(text, v)
         self.cb_interval.setCurrentIndex(3)
-        self.cb_interval.setToolTip("ความถี่ในการบันทึกค่า")
+        self.cb_interval.setToolTip(tr("ความถี่ในการบันทึกค่า"))
         self.cb_interval.currentIndexChanged.connect(self._interval_changed)
         self.pill = QLabel("")
         self.pill.setObjectName("Pill")
-        for w in (self.btn_rec, self.btn_pause, QLabel("ทุก"), self.cb_interval, self.pill):
+        for w in (self.btn_rec, self.btn_pause, QLabel(tr("ทุก")), self.cb_interval, self.pill):
             h.addWidget(w)
         h.addStretch(1)
-        h.addWidget(QLabel("แสดง"))
+        h.addWidget(QLabel(tr("แสดง")))
         self.cb_window = QComboBox()
         for text, v in WINDOWS:
             self.cb_window.addItem(text, v)
         self.cb_window.currentIndexChanged.connect(self.refresh)
         h.addWidget(self.cb_window)
-        self.btn_clear = QPushButton(" ล้าง")
+        self.btn_clear = QPushButton(tr(" ล้าง"))
         self.btn_clear.setIcon(icon("trash", TEXT, 16))
-        self.btn_clear.setToolTip("ล้างข้อมูลในกราฟ")
+        self.btn_clear.setToolTip(tr("ล้างข้อมูลในกราฟ"))
         self.btn_clear.clicked.connect(self.clear)
         self.btn_export = QPushButton(" Export CSV")
         self.btn_export.setIcon(icon("download", TEXT, 16))
@@ -124,7 +125,7 @@ class TrendPanel(QWidget):
         lay.addWidget(bar)
 
         # auto-save option lives in the Advanced panel of the main window
-        self.chk_autosave = QCheckBox("เขียน CSV ลงโฟลเดอร์ทันทีระหว่างบันทึกข้อมูล")
+        self.chk_autosave = QCheckBox(tr("เขียน CSV ลงโฟลเดอร์ทันทีระหว่างบันทึกข้อมูล"))
         self.chk_autosave.setChecked(True)
 
         chips = QHBoxLayout()
@@ -157,7 +158,7 @@ class TrendPanel(QWidget):
         split.addWidget(self.plot)
 
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["ค่า", "ล่าสุด", "ต่ำสุด", "สูงสุด", "เฉลี่ย"])
+        self.table.setHorizontalHeaderLabels([tr("ค่า"), tr("ล่าสุด"), tr("ต่ำสุด"), tr("สูงสุด"), tr("เฉลี่ย")])
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -205,13 +206,13 @@ class TrendPanel(QWidget):
     def toggle_record(self):
         if self.rec.state != "idle":
             if self.linked_video:
-                QMessageBox.information(self, "กำลังอัดวิดีโอ",
-                                        "ข้อมูลชุดนี้บันทึกคู่กับวิดีโอ — หยุดที่ปุ่มบันทึกวิดีโอด้านบน")
+                QMessageBox.information(self, tr("กำลังอัดวิดีโอ"),
+                                        tr("ข้อมูลชุดนี้บันทึกคู่กับวิดีโอ — หยุดที่ปุ่มบันทึกวิดีโอด้านบน"))
                 return
             self.stop_recording()
             return
         if len(self.rec) and QMessageBox.question(
-                self, "เริ่มบันทึกใหม่", "ข้อมูลชุดก่อนหน้าในกราฟจะถูกล้าง ต้องการเริ่มใหม่หรือไม่?") \
+                self, tr("เริ่มบันทึกใหม่"), tr("ข้อมูลชุดก่อนหน้าในกราฟจะถูกล้าง ต้องการเริ่มใหม่หรือไม่?")) \
                 != QMessageBox.StandardButton.Yes:
             return
         path = None
@@ -236,17 +237,17 @@ class TrendPanel(QWidget):
     def _sync_buttons(self):
         st = self.rec.state
         if st == "idle":
-            self.btn_rec.setText(" เริ่มบันทึกข้อมูล")
+            self.btn_rec.setText(tr(" เริ่มบันทึกข้อมูล"))
             self.btn_rec.setIcon(icon("record", "#ff4d4f", 14))
             self.btn_rec.setObjectName("")
         else:
-            self.btn_rec.setText(" หยุด")
+            self.btn_rec.setText(tr(" หยุด"))
             self.btn_rec.setIcon(icon("stop", "#ffffff", 14))
             self.btn_rec.setObjectName("Danger")
         self.btn_rec.style().unpolish(self.btn_rec)
         self.btn_rec.style().polish(self.btn_rec)
         self.btn_pause.setVisible(st != "idle")
-        self.btn_pause.setText(" ต่อ" if st == "paused" else " พัก")
+        self.btn_pause.setText(tr(" ต่อ") if st == "paused" else tr(" พัก"))
         self.btn_pause.setIcon(icon("play" if st == "paused" else "pause", TEXT, 14))
         self.cb_interval.setEnabled(st == "idle")
         self.btn_clear.setEnabled(st == "idle")
@@ -255,7 +256,7 @@ class TrendPanel(QWidget):
         if self.rec.state != "idle":
             return
         if len(self.rec) and QMessageBox.question(
-                self, "ล้างกราฟ", "ล้างข้อมูลที่บันทึกไว้ในกราฟ? (ไฟล์ CSV ที่เขียนไว้แล้วจะไม่ถูกลบ)") \
+                self, tr("ล้างกราฟ"), tr("ล้างข้อมูลที่บันทึกไว้ในกราฟ? (ไฟล์ CSV ที่เขียนไว้แล้วจะไม่ถูกลบ)")) \
                 != QMessageBox.StandardButton.Yes:
             return
         self.rec.clear()
@@ -266,7 +267,7 @@ class TrendPanel(QWidget):
     def export_csv(self):
         src = self.active()
         if not len(src):
-            QMessageBox.information(self, "Export CSV", "ยังไม่มีข้อมูล กด 'เริ่มบันทึกข้อมูล' ก่อน")
+            QMessageBox.information(self, "Export CSV", tr("ยังไม่มีข้อมูล กด 'เริ่มบันทึกข้อมูล' ก่อน"))
             return
         folder = self.folder_fn()
         folder.mkdir(parents=True, exist_ok=True)
@@ -277,7 +278,7 @@ class TrendPanel(QWidget):
         n = src.export_csv(path)
         w = self.window()
         if hasattr(w, "toast"):
-            w.toast(f"Export {n:,} แถว → {path}", "ok")
+            w.toast(tr("Export {n} แถว → {path}", n=f"{n:,}", path=path), "ok")
 
     def set_spot_labels(self, spots):
         self.spot_labels = {f"P{s.slot}": f"P{s.slot} ({s.x},{s.y})" for s in spots}
@@ -291,17 +292,17 @@ class TrendPanel(QWidget):
         win = self.cb_window.currentData()
         st = self.rec.state
         if st in ("recording", "paused"):
-            what = "วิดีโอ + ข้อมูล" if self.linked_video else "บันทึกข้อมูล"
+            what = tr("วิดีโอ + ข้อมูล") if self.linked_video else tr("บันทึกข้อมูล")
             mark = "●" if st == "recording" else "⏸"
-            self.pill.setText(f"{mark} {what}  {fmt_duration(self.elapsed())}  ·  {len(self.rec):,} แถว")
+            self.pill.setText(f"{mark} {what}  {fmt_duration(self.elapsed())}  ·  " + tr("{n} แถว", n=f"{len(self.rec):,}"))
             self.pill.setObjectName("PillRec")
             path = self.rec.stream_path
-            self.pill.setToolTip(str(path) if path else "ยังไม่ได้เขียนไฟล์ — กด Export CSV เมื่อหยุด")
+            self.pill.setToolTip(str(path) if path else tr("ยังไม่ได้เขียนไฟล์ — กด Export CSV เมื่อหยุด"))
         elif src is self.rec:
-            self.pill.setText(f"บันทึกแล้ว  {fmt_duration(self.elapsed())}  ·  {len(self.rec):,} แถว")
+            self.pill.setText(tr("บันทึกแล้ว  {dur}  ·  {n} แถว", dur=fmt_duration(self.elapsed()), n=f"{len(self.rec):,}"))
             self.pill.setObjectName("Pill")
         else:
-            self.pill.setText("Live preview · 2 นาทีล่าสุด")
+            self.pill.setText(tr("Live preview · 2 นาทีล่าสุด"))
             self.pill.setObjectName("Pill")
         self.pill.style().unpolish(self.pill)
         self.pill.style().polish(self.pill)

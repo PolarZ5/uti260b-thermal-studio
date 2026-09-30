@@ -1,15 +1,16 @@
 """Main window of the UTi260B viewer (PyQt6)."""
 import json
 import os
+import sys
 from pathlib import Path
 import time
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QColor, QKeySequence, QShortcut
+from PyQt6.QtCore import QEvent, QObject, QProcess, Qt, QTimer
+from PyQt6.QtGui import QActionGroup, QColor, QKeySequence, QShortcut
 from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFrame, QSpinBox,
                              QGridLayout, QHBoxLayout, QHeaderView, QLabel, QMainWindow, QMenu,
                              QMessageBox, QPushButton, QRadioButton, QScrollArea, QSplitter, QTableWidget,
-                             QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout, QWidget)
+                             QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout, QWidget, QApplication)
 
 from ..bmpfile import read_uti_bmp
 from ..decoder import Decoder, ThermalFrame
@@ -25,7 +26,9 @@ from .trend import TrendPanel
 from .view import Overlay, ThermalView, bgr_to_qimage, fmt, render_to_array
 from .widgets import Card, RecordButton, SegmentedTools, Toast, icon_button
 
-from ..paths import DEFAULT_CAPTURES as DEFAULT_FOLDER, SAMPLES, SETTINGS
+from ..i18n import LANGUAGES, language
+from ..paths import DEFAULT_CAPTURES as DEFAULT_FOLDER, FROZEN, SAMPLES, SETTINGS
+from ..i18n import tr
 
 
 def hint(text):
@@ -128,7 +131,7 @@ class MainWindow(QMainWindow):
         titles.setSpacing(0)
         t = QLabel("UTi260B Thermal Studio")
         t.setObjectName("AppTitle")
-        self.lb_conn = QLabel("ยังไม่เชื่อมต่อ")
+        self.lb_conn = QLabel(tr("ยังไม่เชื่อมต่อ"))
         self.lb_conn.setObjectName("AppSub")
         titles.addWidget(t)
         titles.addWidget(self.lb_conn)
@@ -137,21 +140,21 @@ class MainWindow(QMainWindow):
 
         self.cb_device = QComboBox()
         self.cb_device.setMinimumWidth(210)
-        self.cb_device.setToolTip("เลือกกล้อง")
+        self.cb_device.setToolTip(tr("เลือกกล้อง"))
         h.addWidget(self.cb_device)
         self.btn_connect = QPushButton()
         self.btn_connect.clicked.connect(self.toggle_connect)
         h.addWidget(self.btn_connect)
         h.addStretch(1)
 
-        self.btn_snap = QPushButton("  ถ่ายภาพ")
+        self.btn_snap = QPushButton(tr("  ถ่ายภาพ"))
         self.btn_snap.setObjectName("Capture")
         self.btn_snap.setIcon(icon("camera", TEXT, 18))
-        self.btn_snap.setToolTip("บันทึกภาพ + ตารางอุณหภูมิทุกพิกเซล (Ctrl+S)")
+        self.btn_snap.setToolTip(tr("บันทึกภาพ + ตารางอุณหภูมิทุกพิกเซล (Ctrl+S)"))
         self.btn_snap.clicked.connect(self.snapshot)
         h.addWidget(self.btn_snap)
-        self.btn_rec = RecordButton("บันทึกวิดีโอ")
-        self.btn_rec.setToolTip("อัดวิดีโอ MP4 พร้อม CSV ชื่อเดียวกัน (Ctrl+R)")
+        self.btn_rec = RecordButton(tr("บันทึกวิดีโอ"))
+        self.btn_rec.setToolTip(tr("อัดวิดีโอ MP4 พร้อม CSV ชื่อเดียวกัน (Ctrl+R)"))
         self.btn_rec.clicked.connect(lambda: self.toggle_video())
         h.addWidget(self.btn_rec)
 
@@ -159,30 +162,44 @@ class MainWindow(QMainWindow):
         self.btn_folder.setObjectName("Folder")
         self.btn_folder.setIcon(icon("folder", MUTED, 16))
         menu = QMenu(self)
-        menu.addAction(icon("folder", TEXT, 16), "เปิดโฟลเดอร์", self.open_folder)
-        menu.addAction(icon("sliders", TEXT, 16), "เปลี่ยนโฟลเดอร์ปลายทาง…", self.choose_folder)
+        menu.addAction(icon("folder", TEXT, 16), tr("เปิดโฟลเดอร์"), self.open_folder)
+        menu.addAction(icon("sliders", TEXT, 16), tr("เปลี่ยนโฟลเดอร์ปลายทาง…"), self.choose_folder)
         self.btn_folder.setMenu(menu)
         h.addWidget(self.btn_folder)
 
         more = QToolButton()
         more.setIcon(icon("more", TEXT, 20))
-        more.setToolTip("เมนูเพิ่มเติม")
+        more.setToolTip(tr("เมนูเพิ่มเติม"))
         more.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         m = QMenu(self)
-        m.addAction(icon("refresh", TEXT, 16), "ค้นหากล้องใหม่", self.refresh_devices)
-        m.addAction(icon("sparkles", TEXT, 16), "โหมดสาธิต (ภาพตัวอย่าง)", self.start_demo)
-        m.addAction(icon("image", TEXT, 16), "เปิดไฟล์ BMP จากกล้อง…", self.open_bmp)
+        m.addAction(icon("refresh", TEXT, 16), tr("ค้นหากล้องใหม่"), self.refresh_devices)
+        m.addAction(icon("sparkles", TEXT, 16), tr("โหมดสาธิต (ภาพตัวอย่าง)"), self.start_demo)
+        m.addAction(icon("image", TEXT, 16), tr("เปิดไฟล์ BMP จากกล้อง…"), self.open_bmp)
         m.addSeparator()
-        m.addAction(icon("cog", TEXT, 16), "ตั้งค่าไดรเวอร์ UVC", self.driver_settings)
+        m.addAction(icon("cog", TEXT, 16), tr("ตั้งค่าไดรเวอร์ UVC"), self.driver_settings)
         more.setMenu(m)
         h.addWidget(more)
 
+        self.btn_lang = QToolButton()
+        self.btn_lang.setText(language().upper())
+        self.btn_lang.setToolTip(tr("เปลี่ยนภาษา — โปรแกรมจะเปิดใหม่"))
+        self.btn_lang.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        lm = QMenu(self)
+        lg = QActionGroup(self)
+        for code, name in LANGUAGES.items():
+            act = lm.addAction(name, lambda c=code: self.change_language(c))
+            act.setCheckable(True)
+            act.setChecked(code == language())
+            lg.addAction(act)
+        self.btn_lang.setMenu(lm)
+        h.addWidget(self.btn_lang)
+
         self.btn_adv = QToolButton()
         self.btn_adv.setIcon(icon("sliders", TEXT, 18))
-        self.btn_adv.setText(" ขั้นสูง")
+        self.btn_adv.setText(tr(" ขั้นสูง"))
         self.btn_adv.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.btn_adv.setCheckable(True)
-        self.btn_adv.setToolTip("แสดง/ซ่อนการตั้งค่าขั้นสูง")
+        self.btn_adv.setToolTip(tr("แสดง/ซ่อนการตั้งค่าขั้นสูง"))
         self.btn_adv.toggled.connect(self._toggle_advanced)
         h.addWidget(self.btn_adv)
         self.header = bar
@@ -207,21 +224,21 @@ class MainWindow(QMainWindow):
         il.setSpacing(6)
         tools = QHBoxLayout()
         self.seg = SegmentedTools([
-            ("spot", " จุดวัด", "spot", "คลิกบนภาพเพื่อเพิ่มจุดวัด (คลิกขวาที่จุดเพื่อลบ)"),
-            ("roi", " ROI", "roi", "ลากกรอบพื้นที่ที่ต้องการวัด"),
-            ("mask", " ไม่วัด", "mask", "ลากกรอบพื้นที่ที่ไม่ต้องการวัด เช่น ตัวหนังสือบนจอกล้อง"),
+            ("spot", tr(" จุดวัด"), "spot", tr("คลิกบนภาพเพื่อเพิ่มจุดวัด (คลิกขวาที่จุดเพื่อลบ)")),
+            ("roi", " ROI", "roi", tr("ลากกรอบพื้นที่ที่ต้องการวัด")),
+            ("mask", tr(" ไม่วัด"), "mask", tr("ลากกรอบพื้นที่ที่ไม่ต้องการวัด เช่น ตัวหนังสือบนจอกล้อง")),
         ])
         self.seg.toolChanged.connect(self.set_tool)
         tools.addWidget(self.seg)
-        clear = icon_button("eraser", "ล้าง")
+        clear = icon_button("eraser", tr("ล้าง"))
         clear.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         cm = QMenu(self)
-        cm.addAction("ล้างจุดวัดทั้งหมด", self.clear_spots)
-        cm.addAction("ล้างกรอบ ROI", lambda: self.set_roi(None))
-        cm.addAction("ล้างพื้นที่ไม่วัด", self.clear_masks)
+        cm.addAction(tr("ล้างจุดวัดทั้งหมด"), self.clear_spots)
+        cm.addAction(tr("ล้างกรอบ ROI"), lambda: self.set_roi(None))
+        cm.addAction(tr("ล้างพื้นที่ไม่วัด"), self.clear_masks)
         clear.setMenu(cm)
         tools.addWidget(clear)
-        self.btn_freeze = icon_button("pause", "หยุดภาพชั่วคราว (Space)", checkable=True)
+        self.btn_freeze = icon_button("pause", tr("หยุดภาพชั่วคราว (Space)"), checkable=True)
         self.btn_freeze.toggled.connect(self.set_frozen)
         tools.addWidget(self.btn_freeze)
         tools.addStretch(1)
@@ -248,18 +265,19 @@ class MainWindow(QMainWindow):
         sl.setSpacing(10)
         grid = QGridLayout()
         grid.setSpacing(8)
-        self.c_max = Card("สูงสุด", COLORS["max"])
-        self.c_min = Card("ต่ำสุด", COLORS["min"])
-        self.c_center = Card("จุดกลาง", COLORS["center"])
-        self.c_mean = Card("เฉลี่ยทั้งภาพ")
+        self.c_max = Card(tr("สูงสุด"), COLORS["max"])
+        self.c_min = Card(tr("ต่ำสุด"), COLORS["min"])
+        self.c_center = Card(tr("จุดกลาง"), COLORS["center"])
+        self.c_mean = Card(tr("เฉลี่ยทั้งภาพ"))
         for i, c in enumerate((self.c_max, self.c_min, self.c_center, self.c_mean)):
             grid.addWidget(c, i // 2, i % 2)
         sl.addLayout(grid)
         self.c_roi = Card("ROI", COLORS["roi_max"], big=False)
+        self.c_roi.setVisible(False)                    # shown once an ROI is drawn
         sl.addWidget(self.c_roi)
 
         self.spot_table = QTableWidget(0, 4)
-        self.spot_table.setHorizontalHeaderLabels(["จุด", "ตำแหน่ง", "อุณหภูมิ", ""])
+        self.spot_table.setHorizontalHeaderLabels([tr("จุด"), tr("ตำแหน่ง"), tr("อุณหภูมิ"), ""])
         self.spot_table.verticalHeader().setVisible(False)
         self.spot_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.spot_table.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
@@ -270,10 +288,10 @@ class MainWindow(QMainWindow):
         self.spot_table.cellClicked.connect(self._edit_spot_pos)
         self._editing_slot = None
         sl.addWidget(self.spot_table)
-        self.lb_spot_hint = hint("คลิกบนภาพเพื่อเพิ่มจุดวัด (สูงสุด 6 จุด)")
+        self.lb_spot_hint = hint(tr("คลิกบนภาพเพื่อเพิ่มจุดวัด (สูงสุด 6 จุด)"))
         sl.addWidget(self.lb_spot_hint)
         self.lb_cam = hint("")
-        self.lb_cam.setToolTip("ค่าจาก Point Temperature ของกล้อง (อ่านด้วย OCR) ใช้สอบเทียบภาพด้วย")
+        self.lb_cam.setToolTip(tr("ค่าจาก Point Temperature ของกล้อง (อ่านด้วย OCR) ใช้สอบเทียบภาพด้วย"))
         sl.addWidget(self.lb_cam)
 
         quick = QFrame()
@@ -287,7 +305,7 @@ class MainWindow(QMainWindow):
         pal_ic = QLabel()
         pal_ic.setPixmap(icon("image", MUTED, 16).pixmap(16, 16))
         ql.addLayout(row(pal_ic, "Palette", self.cb_palette))
-        self.chk_alarm = QCheckBox("แจ้งเตือนเมื่อสูงกว่า")
+        self.chk_alarm = QCheckBox(tr("แจ้งเตือนเมื่อสูงกว่า"))
         self.sp_alarm_hi = spin(value=60, step=1)
         bell = QLabel()
         bell.setPixmap(icon("bell", MUTED, 16).pixmap(16, 16))
@@ -328,52 +346,52 @@ class MainWindow(QMainWindow):
         ic = QLabel()
         ic.setPixmap(icon("sliders", ACCENT, 16).pixmap(16, 16))
         head.addWidget(ic)
-        head.addWidget(section("การตั้งค่าขั้นสูง"))
+        head.addWidget(section(tr("การตั้งค่าขั้นสูง")))
         head.addStretch(1)
         bl.addLayout(head)
         tabs = QTabWidget()
-        tabs.addTab(self._adv_measure(), "การวัด")
-        tabs.addTab(self._adv_display(), "แสดงผล")
-        tabs.addTab(self._adv_alarm(), "แจ้งเตือน")
-        tabs.addTab(self._adv_record(), "บันทึก")
-        tabs.addTab(self._adv_camera(), "กล้อง")
+        tabs.addTab(self._adv_measure(), tr("การวัด"))
+        tabs.addTab(self._adv_display(), tr("แสดงผล"))
+        tabs.addTab(self._adv_alarm(), tr("แจ้งเตือน"))
+        tabs.addTab(self._adv_record(), tr("บันทึก"))
+        tabs.addTab(self._adv_camera(), tr("กล้อง"))
         bl.addWidget(tabs)
         return box
 
     def _adv_measure(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        lay.addWidget(section("สเกลอุณหภูมิ"))
-        self.rb_osd = QRadioButton("อ่านจากแถบสีของกล้อง (อัตโนมัติ)")
-        self.rb_manual = QRadioButton("กำหนดเอง")
+        lay.addWidget(section(tr("สเกลอุณหภูมิ")))
+        self.rb_osd = QRadioButton(tr("อ่านจากแถบสีของกล้อง (อัตโนมัติ)"))
+        self.rb_manual = QRadioButton(tr("กำหนดเอง"))
         self.rb_osd.setChecked(True)
         g = QButtonGroup(w)
         g.addButton(self.rb_osd)
         g.addButton(self.rb_manual)
         lay.addWidget(self.rb_osd)
         self.sp_man_min, self.sp_man_max = spin(value=20), spin(value=40)
-        lay.addLayout(row(self.rb_manual, self.sp_man_min, "ถึง", self.sp_man_max))
+        lay.addLayout(row(self.rb_manual, self.sp_man_min, tr("ถึง"), self.sp_man_max))
         self.cb_unit = QComboBox()
         self.cb_unit.addItems(["C", "F"])
-        lay.addLayout(row("หน่วย", self.cb_unit))
+        lay.addLayout(row(tr("หน่วย"), self.cb_unit))
         for s in (self.rb_osd, self.rb_manual):
             s.toggled.connect(self._apply_decoder)
         for s in (self.sp_man_min, self.sp_man_max):
             s.valueChanged.connect(self._apply_decoder)
         self.cb_unit.currentTextChanged.connect(self._apply_decoder)
-        lay.addWidget(section("อ่านค่าจากจอกล้อง"))
-        self.chk_center_fix = QCheckBox("สอบเทียบด้วยค่าจุดกลาง + Point Temperature ของกล้อง")
+        lay.addWidget(section(tr("อ่านค่าจากจอกล้อง")))
+        self.chk_center_fix = QCheckBox(tr("สอบเทียบด้วยค่าจุดกลาง + Point Temperature ของกล้อง"))
         self.chk_center_fix.setChecked(True)
-        self.chk_markers = QCheckBox("ใช้ตำแหน่ง/ค่าจุดร้อน-เย็นจากเป้าของกล้อง")
+        self.chk_markers = QCheckBox(tr("ใช้ตำแหน่ง/ค่าจุดร้อน-เย็นจากเป้าของกล้อง"))
         self.chk_markers.setChecked(True)
-        self.chk_overlay = QCheckBox("ตัดตัวหนังสือ/เป้าเล็งของกล้องออกจากการวัด")
+        self.chk_overlay = QCheckBox(tr("ตัดตัวหนังสือ/เป้าเล็งของกล้องออกจากการวัด"))
         self.chk_overlay.setChecked(True)
         for c in (self.chk_center_fix, self.chk_markers, self.chk_overlay):
             c.toggled.connect(self._apply_decoder)
             lay.addWidget(c)
-        lay.addWidget(section("เครื่องหมายบนภาพ"))
-        self.chk_hot, self.chk_cold, self.chk_center = (QCheckBox("จุดร้อนสุด"), QCheckBox("จุดเย็นสุด"),
-                                                         QCheckBox("จุดกลาง"))
+        lay.addWidget(section(tr("เครื่องหมายบนภาพ")))
+        self.chk_hot, self.chk_cold, self.chk_center = (QCheckBox(tr("จุดร้อนสุด")), QCheckBox(tr("จุดเย็นสุด")),
+                                                         QCheckBox(tr("จุดกลาง")))
         for c in (self.chk_hot, self.chk_cold, self.chk_center):
             c.setChecked(True)
             c.toggled.connect(self._redraw)
@@ -384,20 +402,20 @@ class MainWindow(QMainWindow):
     def _adv_display(self):
         w = QWidget()
         lay = QVBoxLayout(w)
-        self.chk_clean = QCheckBox("ลบตัวหนังสือ/สัญลักษณ์ของกล้องออกจากภาพ (clean)")
+        self.chk_clean = QCheckBox(tr("ลบตัวหนังสือ/สัญลักษณ์ของกล้องออกจากภาพ (clean)"))
         self.chk_clean.toggled.connect(self._redraw)
         lay.addWidget(self.chk_clean)
-        self.chk_span = QCheckBox("ล็อกช่วงสี")
+        self.chk_span = QCheckBox(tr("ล็อกช่วงสี"))
         self.chk_span.toggled.connect(self._redraw)
         self.sp_span_min, self.sp_span_max = spin(value=20), spin(value=40)
         for s in (self.sp_span_min, self.sp_span_max):
             s.valueChanged.connect(self._redraw)
-        lay.addLayout(row(self.chk_span, self.sp_span_min, "ถึง", self.sp_span_max))
-        b = QPushButton("ใช้ช่วงของภาพปัจจุบัน")
+        lay.addLayout(row(self.chk_span, self.sp_span_min, tr("ถึง"), self.sp_span_max))
+        b = QPushButton(tr("ใช้ช่วงของภาพปัจจุบัน"))
         b.clicked.connect(self.lock_current_span)
         lay.addLayout(row(b))
-        lay.addWidget(hint("ล็อกช่วงสีเพื่อเปรียบเทียบภาพต่อเนื่องได้ แม้กล้องจะปรับช่วงเอง "
-                           "(ใช้กับ palette อื่นที่ไม่ใช่ original หรือเมื่อเปิด clean)"))
+        lay.addWidget(hint(tr("ล็อกช่วงสีเพื่อเปรียบเทียบภาพต่อเนื่องได้ แม้กล้องจะปรับช่วงเอง "
+                           "(ใช้กับ palette อื่นที่ไม่ใช่ original หรือเมื่อเปิด clean)")))
         lay.addStretch(1)
         return w
 
@@ -405,12 +423,12 @@ class MainWindow(QMainWindow):
         w = QWidget()
         lay = QVBoxLayout(w)
         self.sp_alarm_lo = spin(value=-20, step=1)
-        self.chk_alarm_lo = QCheckBox("แจ้งเตือนเมื่อต่ำกว่า")
+        self.chk_alarm_lo = QCheckBox(tr("แจ้งเตือนเมื่อต่ำกว่า"))
         lay.addLayout(row(self.chk_alarm_lo, self.sp_alarm_lo))
         self.cb_alarm_target = QComboBox()
-        self.cb_alarm_target.addItems(["ทั้งภาพ", "ROI", "จุดวัดทุกจุด", "จุดกลาง"])
-        lay.addLayout(row("ตรวจที่", self.cb_alarm_target))
-        self.chk_sound = QCheckBox("มีเสียงเตือน")
+        self.cb_alarm_target.addItems([tr("ทั้งภาพ"), "ROI", tr("จุดวัดทุกจุด"), tr("จุดกลาง")])
+        lay.addLayout(row(tr("ตรวจที่"), self.cb_alarm_target))
+        self.chk_sound = QCheckBox(tr("มีเสียงเตือน"))
         self.chk_sound.setChecked(True)
         lay.addWidget(self.chk_sound)
         lay.addStretch(1)
@@ -424,9 +442,9 @@ class MainWindow(QMainWindow):
         for text, v in (("1× (240×320)", 1.0), ("2× (480×640)", 2.0), ("3× (720×960)", 3.0)):
             self.cb_video_scale.addItem(text, v)
         self.cb_video_scale.setCurrentIndex(1)
-        lay.addLayout(row("ขนาดวิดีโอ/ภาพ", self.cb_video_scale))
-        lay.addWidget(hint("ระหว่างอัดวิดีโอ ค่าที่วัดได้จะถูกบันทึกลง CSV ชื่อเดียวกับวิดีโอ "
-                           "ตามความถี่ที่ตั้งในแผงกราฟ ไฟล์ทั้งหมดอยู่ในโฟลเดอร์ปลายทางที่เลือกไว้"))
+        lay.addLayout(row(tr("ขนาดวิดีโอ/ภาพ"), self.cb_video_scale))
+        lay.addWidget(hint(tr("ระหว่างอัดวิดีโอ ค่าที่วัดได้จะถูกบันทึกลง CSV ชื่อเดียวกับวิดีโอ "
+                           "ตามความถี่ที่ตั้งในแผงกราฟ ไฟล์ทั้งหมดอยู่ในโฟลเดอร์ปลายทางที่เลือกไว้")))
         lay.addStretch(1)
         return w
 
@@ -439,11 +457,11 @@ class MainWindow(QMainWindow):
         self.cb_rotation = QComboBox()
         self.cb_rotation.addItems(["auto", "0", "90", "180", "270"])
         self.cb_rotation.currentTextChanged.connect(self._apply_decoder)
-        lay.addLayout(row("หมุนภาพ", self.cb_rotation))
+        lay.addLayout(row(tr("หมุนภาพ"), self.cb_rotation))
         lay.addWidget(hint(
-            "ที่ตัวกล้อง: Settings → USB Mode → USB Camera\n"
+            tr("ที่ตัวกล้อง: Settings → USB Mode → USB Camera\n"
             "ใช้ Image Mode = Thermal และเปิด Center Spot ไว้เพื่อให้สอบเทียบได้แม่น\n"
-            "การตั้งค่าในตัวกล้อง (palette, emissivity, gain) ต้องกดที่ตัวกล้อง"))
+            "การตั้งค่าในตัวกล้อง (palette, emissivity, gain) ต้องกดที่ตัวกล้อง")))
         lay.addStretch(1)
         return w
 
@@ -453,6 +471,21 @@ class MainWindow(QMainWindow):
                         ("Ctrl+1", lambda: self.set_tool("spot")), ("Ctrl+2", lambda: self.set_tool("roi")),
                         ("Ctrl+3", lambda: self.set_tool("mask"))):
             QShortcut(QKeySequence(seq), self, activated=fn)
+
+    def change_language(self, code):
+        if code == language():
+            return
+        if self.capture.video is not None or self.recorder.state != "idle":
+            self.toast(tr("เปลี่ยนภาษาไม่ได้ระหว่างบันทึก"), "error")
+            return
+        self._save_settings(lang=code)
+        self.disconnect()
+        if FROZEN:
+            QProcess.startDetached(sys.executable, sys.argv[1:])
+        else:
+            QProcess.startDetached(sys.executable, ["-m", "uti260b"], str(Path(__file__).resolve().parents[2]))
+        self._restarting = True
+        QApplication.quit()
 
     def _toggle_advanced(self, on):
         self.adv.setVisible(on)
@@ -467,14 +500,14 @@ class MainWindow(QMainWindow):
         f = self.capture.folder
         name = f.name or str(f)
         self.btn_folder.setText(f"  {name if len(name) <= 22 else name[:20] + '…'}")
-        self.btn_folder.setToolTip(f"โฟลเดอร์ปลายทาง:\n{f}")
+        self.btn_folder.setToolTip(tr("โฟลเดอร์ปลายทาง:") + f"\n{f}")
 
     def choose_folder(self):
-        d = QFileDialog.getExistingDirectory(self, "เลือกโฟลเดอร์ปลายทาง", str(self.capture.folder))
+        d = QFileDialog.getExistingDirectory(self, tr("เลือกโฟลเดอร์ปลายทาง"), str(self.capture.folder))
         if d:
             self.capture.set_folder(d)
             self._update_folder_button()
-            self.toast(f"บันทึกไฟล์ไปที่ {d}", "info")
+            self.toast(tr("บันทึกไฟล์ไปที่ {path}", path=d), "info")
 
     def open_folder(self):
         self.capture.folder.mkdir(parents=True, exist_ok=True)
@@ -490,24 +523,24 @@ class MainWindow(QMainWindow):
         if guess is not None:
             self.cb_device.setCurrentIndex([i for i, _ in cams].index(guess))
         if not cams:
-            self.cb_device.addItem("ไม่พบกล้อง — ตั้ง USB Mode = USB Camera", None)
+            self.cb_device.addItem(tr("ไม่พบกล้อง — ตั้ง USB Mode = USB Camera"), None)
         self._sync_connect()
         if auto_connect and guess is not None and self.source is None:
             self.connect_camera()
 
     def _sync_connect(self):
         on = self.source is not None
-        self.btn_connect.setText("  ตัดการเชื่อมต่อ" if on else "  เชื่อมต่อ")
+        self.btn_connect.setText(tr("  ตัดการเชื่อมต่อ") if on else tr("  เชื่อมต่อ"))
         self.btn_connect.setIcon(icon("unplug" if on else "plug", TEXT, 16))
         if not on:
-            self.lb_conn.setText("ยังไม่เชื่อมต่อ")
+            self.lb_conn.setText(tr("ยังไม่เชื่อมต่อ"))
 
     def _set_source(self, src):
         self.disconnect()
         try:
             src.start()
         except Exception as e:
-            QMessageBox.critical(self, "เชื่อมต่อไม่ได้", str(e))
+            QMessageBox.critical(self, tr("เชื่อมต่อไม่ได้"), str(e))
             return False
         self.source = src
         self.last_seq = -1
@@ -529,15 +562,15 @@ class MainWindow(QMainWindow):
             self.refresh_devices()
             idx = self.cb_device.currentData()
         if idx is None:
-            self.toast("ไม่พบกล้อง — ตั้งกล้องเป็น USB Mode = USB Camera แล้วเสียบสายใหม่", "error")
+            self.toast(tr("ไม่พบกล้อง — ตั้งกล้องเป็น USB Mode = USB Camera แล้วเสียบสายใหม่"), "error")
             return
         if self._set_source(CameraSource(idx, self.cb_backend.currentText(), name=self.cb_device.currentText())):
-            self.toast("เชื่อมต่อกล้องแล้ว", "ok")
+            self.toast(tr("เชื่อมต่อกล้องแล้ว"), "ok")
 
     def start_demo(self):
         try:
             if self._set_source(DemoSource(SAMPLES)):
-                self.toast("โหมดสาธิต: เล่นภาพตัวอย่าง", "info")
+                self.toast(tr("โหมดสาธิต: เล่นภาพตัวอย่าง"), "info")
         except Exception as e:
             QMessageBox.critical(self, "Demo", str(e))
 
@@ -550,14 +583,14 @@ class MainWindow(QMainWindow):
         self._sync_connect()
 
     def open_bmp(self):
-        path, _ = QFileDialog.getOpenFileName(self, "เปิดไฟล์ภาพจากกล้อง (USB Mode = USB Disk)", "",
+        path, _ = QFileDialog.getOpenFileName(self, tr("เปิดไฟล์ภาพจากกล้อง (USB Mode = USB Disk)"), "",
                                               "UTi images (*.bmp *.BMP);;All (*.*)")
         if not path:
             return
         try:
             bmp = read_uti_bmp(path)
         except Exception as e:
-            QMessageBox.critical(self, "อ่านไฟล์ไม่ได้", str(e))
+            QMessageBox.critical(self, tr("อ่านไฟล์ไม่ได้"), str(e))
             return
         self.disconnect()
         self.frame = Decoder.from_bmp(bmp)
@@ -565,18 +598,18 @@ class MainWindow(QMainWindow):
         self.cb_unit.setCurrentText(bmp.unit)
         self.frozen = True
         self._process(new=False)
-        self.lb_conn.setText(f"ไฟล์ {Path(path).name} · emissivity {bmp.emissivity:.2f}")
+        self.lb_conn.setText(tr("ไฟล์ {name}", name=Path(path).name) + f" · emissivity {bmp.emissivity:.2f}")
 
     def driver_settings(self):
         if isinstance(self.source, CameraSource):
             self.source.open_driver_settings()
         else:
-            self.toast("ต้องเชื่อมต่อกล้องด้วย Backend = DirectShow ก่อน", "info")
+            self.toast(tr("ต้องเชื่อมต่อกล้องด้วย Backend = DirectShow ก่อน"), "info")
 
     def set_frozen(self, on):
         self.frozen = on
         self.btn_freeze.setIcon(icon("play" if on else "pause", ACCENT if on else TEXT, 18))
-        self.btn_freeze.setToolTip("เล่นต่อ (Space)" if on else "หยุดภาพชั่วคราว (Space)")
+        self.btn_freeze.setToolTip(tr("เล่นต่อ (Space)") if on else tr("หยุดภาพชั่วคราว (Space)"))
 
     # =============================================================== tools
     def set_tool(self, key):
@@ -586,7 +619,7 @@ class MainWindow(QMainWindow):
     def add_spot(self, x, y):
         slot = free_slot(self.spots)
         if slot is None:
-            self.toast(f"มีจุดวัดครบ {MAX_SPOTS} จุดแล้ว — คลิกขวาที่จุดเพื่อลบ", "info")
+            self.toast(tr("มีจุดวัดครบ {n} จุดแล้ว — คลิกขวาที่จุดเพื่อลบ", n=MAX_SPOTS), "info")
             return
         self.spots.append(Spot(slot, x, y))
         self.spots.sort(key=lambda s: s.slot)
@@ -630,7 +663,7 @@ class MainWindow(QMainWindow):
         h, w = self.frame.shape
         if 0 <= x < w and 0 <= y < h:
             t = self.frame.temp_at(x, y, 0)
-            self.lb_hover.setText(f"({x}, {y})   {fmt(t, self.unit) if t is not None else 'วัดไม่ได้'}")
+            self.lb_hover.setText(f"({x}, {y})   {fmt(t, self.unit) if t is not None else tr('วัดไม่ได้')}")
 
     # ============================================================ pipeline
     @property
@@ -688,7 +721,7 @@ class MainWindow(QMainWindow):
                 self.capture.video.write(self._render_file(), self.m)
             except Exception as e:
                 self.toggle_video(False)
-                self.toast(f"อัดวิดีโอไม่ได้: {e}", "error")
+                self.toast(tr("อัดวิดีโอไม่ได้: {err}", err=e), "error")
 
     def _render_file(self):
         return render_to_array(self.view.image, self.view.ov, float(self.cb_video_scale.currentData()))
@@ -700,11 +733,11 @@ class MainWindow(QMainWindow):
         recolored = pal != "original" or self.chk_clean.isChecked()
         lo, hi = display_span(f, span if recolored else None)
         if f.menu_open:
-            note = "เมนูของกล้องเปิดอยู่ — กด Back ที่กล้องเพื่อให้วัดได้ครบทั้งภาพ"
+            note = tr("เมนูของกล้องเปิดอยู่ — กด Back ที่กล้องเพื่อให้วัดได้ครบทั้งภาพ")
         elif not f.has_scale:
-            note = "ยังไม่มีสเกลอุณหภูมิ — ตั้งช่วงเองใน ขั้นสูง › การวัด"
+            note = tr("ยังไม่มีสเกลอุณหภูมิ — ตั้งช่วงเองใน ขั้นสูง › การวัด")
         elif f.range_source == "partial":
-            note = "ค่า Min ของสเกลถูกบัง — ใช้ค่าล่าสุดที่อ่านได้"
+            note = tr("ค่า Min ของสเกลถูกบัง — ใช้ค่าล่าสุดที่อ่านได้")
         else:
             note = ""
         return Overlay(m=self.m, spots=list(self.spots), roi=self.roi, masks=list(self.decoder.exclude_rects),
@@ -723,17 +756,17 @@ class MainWindow(QMainWindow):
 
     def _update_cards(self):
         m, u, f = self.m, self.unit, self.frame
-        src = " · จากกล้อง" if m.from_camera else ""
+        src = tr(" · จากกล้อง") if m.from_camera else ""
         self.c_max.value.setText(fmt(m.max, u))
         self.c_max.sub.setText(f"{m.max_xy}{src}" if m.max_xy else "")
         self.c_min.value.setText(fmt(m.min, u))
         self.c_min.sub.setText(f"{m.min_xy}{src}" if m.min_xy else "")
         self.c_center.value.setText(fmt(m.center, u))
-        self.c_center.sub.setText("ค่าจากกล้อง" if f.center_temp is not None else "")
+        self.c_center.sub.setText(tr("ค่าจากกล้อง") if f.center_temp is not None else "")
         self.c_mean.value.setText(fmt(m.mean, u))
         n_cal = len(f.calibration)
-        cal = f" · สอบเทียบ {n_cal} จุด" if n_cal > 2 and f.layout != "bmp" else ""
-        self.c_mean.sub.setText(f"สเกล {fmt(f.t_min, u)}–{fmt(f.t_max, u)}{cal}")
+        cal = tr(" · สอบเทียบ {n} จุด", n=n_cal) if n_cal > 2 and f.layout != "bmp" else ""
+        self.c_mean.sub.setText(tr("สเกล {lo}–{hi}", lo=fmt(f.t_min, u), hi=fmt(f.t_max, u)) + cal)
         self.c_roi.setVisible(m.roi is not None)
         if m.roi:
             self.c_roi.value.setText(f"▲ {fmt(m.roi['max'], u)}   ▼ {fmt(m.roi['min'], u)}   Ø {fmt(m.roi['mean'], u)}")
@@ -743,9 +776,9 @@ class MainWindow(QMainWindow):
             t = m.spots.get(sp.slot, (0, 0, None))[2]
             it = self.spot_table.item(r, 2)
             if it:
-                it.setText(fmt(t, u) if t is not None else "วัดไม่ได้")
+                it.setText(fmt(t, u) if t is not None else tr("วัดไม่ได้"))
         if m.cam_points:
-            self.lb_cam.setText("จุดวัดของกล้อง:  " + "   ".join(
+            self.lb_cam.setText(tr("จุดวัดของกล้อง:  ") + "   ".join(
                 f"P{n} {fmt(t, u)} ({x},{y})" for n, (x, y, t) in sorted(m.cam_points.items())))
         else:
             self.lb_cam.setText("")
@@ -760,12 +793,12 @@ class MainWindow(QMainWindow):
             tb.removeCellWidget(r, 1)                    # drop an open X/Y editor
             pos = QTableWidgetItem(f"({sp.x}, {sp.y})  ✎")
             pos.setForeground(QColor(ACCENT))
-            pos.setToolTip("คลิกเพื่อแก้ตำแหน่ง")
+            pos.setToolTip(tr("คลิกเพื่อแก้ตำแหน่ง"))
             tb.setItem(r, 1, pos)
             tb.setItem(r, 2, QTableWidgetItem("--"))
             b = QToolButton()
             b.setIcon(icon("trash", MUTED, 14))
-            b.setToolTip(f"ลบจุด P{sp.slot}")
+            b.setToolTip(tr("ลบจุด P{n}", n=sp.slot))
             b.clicked.connect(lambda _, s=sp.slot: self.remove_spot(s))
             tb.setCellWidget(r, 3, b)
         self._editing_slot = None
@@ -792,7 +825,7 @@ class MainWindow(QMainWindow):
             s.setRange(0, hi)
             s.setValue(v)
             s.setPrefix(f"{name} ")
-            s.setToolTip("ลูกศรขึ้น/ลง หรือหมุนล้อเมาส์เพื่อเลื่อนทีละพิกเซล • Enter = ตกลง")
+            s.setToolTip(tr("ลูกศรขึ้น/ลง หรือหมุนล้อเมาส์เพื่อเลื่อนทีละพิกเซล • Enter = ตกลง"))
             s.setButtonSymbols(QSpinBox.ButtonSymbols.NoButtons)
             s.setMinimumWidth(56)
             s.valueChanged.connect(lambda _=0, slot=sp.slot: self._move_spot(slot, sx.value(), sy.value()))
@@ -800,7 +833,7 @@ class MainWindow(QMainWindow):
             lay.addWidget(s)
         ok = QToolButton()
         ok.setIcon(icon("check", "#52d273", 14))
-        ok.setToolTip("ตกลง")
+        ok.setToolTip(tr("ตกลง"))
         ok.clicked.connect(self._rebuild_spot_table)
         lay.addWidget(ok)
         self.spot_table.setCellWidget(row, 1, box)
@@ -845,7 +878,7 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
         if self.alarm and not was:
-            self.toast("อุณหภูมิเกินเกณฑ์ที่ตั้งไว้", "error")
+            self.toast(tr("อุณหภูมิเกินเกณฑ์ที่ตั้งไว้"), "error")
 
     def _ui_tick(self):
         """Twice a second: blinking record indicators, timers, graph, connection line."""
@@ -867,20 +900,20 @@ class MainWindow(QMainWindow):
         if self.source is not None and self.frame is not None:
             f = self.frame
             self.lb_conn.setText(f"● {self.source.name.split('  (')[0]} · {self.source.fps:.1f} fps · "
-                                 f"palette {f.palette} · สเกล {fmt(f.t_min, self.unit)}–{fmt(f.t_max, self.unit)}")
+                                 f"palette {f.palette} · " + tr("สเกล {lo}–{hi}", lo=fmt(f.t_min, self.unit), hi=fmt(f.t_max, self.unit)))
 
     # ============================================================ outputs
     def snapshot(self):
         if self.frame is None:
-            self.toast("ยังไม่มีภาพให้บันทึก", "error")
+            self.toast(tr("ยังไม่มีภาพให้บันทึก"), "error")
             return
         try:
             paths = self.capture.snapshot(self.frame, self.m, self._render_file(), {"roi_rect": self.roi})
         except Exception as e:
-            self.toast(f"บันทึกภาพไม่ได้: {e}", "error")
+            self.toast(tr("บันทึกภาพไม่ได้: {err}", err=e), "error")
             return
         self.view.flash()
-        self.toast(f"บันทึกภาพแล้ว  {paths[0].name}", "ok", "เปิดโฟลเดอร์", self.open_folder)
+        self.toast(tr("บันทึกภาพแล้ว  {name}", name=paths[0].name), "ok", tr("เปิดโฟลเดอร์"), self.open_folder)
 
     def toggle_video(self, on=None):
         on = (self.capture.video is None) if on is None else on
@@ -891,16 +924,16 @@ class MainWindow(QMainWindow):
             self.btn_rec.set_recording(False)
             self.view.rec_badges = []
             if v is not None:
-                self.toast(f"บันทึกแล้ว  {v.video_path.name} + {v.csv_path.name}  ({fmt_duration(v.elapsed)})",
-                           "ok", "เปิดโฟลเดอร์", self.open_folder)
+                self.toast(tr("บันทึกแล้ว  {video} + {csv}  ({dur})", video=v.video_path.name, csv=v.csv_path.name, dur=fmt_duration(v.elapsed)),
+                           "ok", tr("เปิดโฟลเดอร์"), self.open_folder)
             return
         if self.frame is None or self.view.image is None:
-            self.toast("ยังไม่มีภาพ — เชื่อมต่อกล้องก่อน", "error")
+            self.toast(tr("ยังไม่มีภาพ — เชื่อมต่อกล้องก่อน"), "error")
             self.btn_rec.set_recording(False)
             return
         if self.recorder.state == "idle":
             if len(self.recorder) and QMessageBox.question(
-                    self, "บันทึกวิดีโอ", "ข้อมูลในกราฟชุดก่อนหน้าจะถูกแทนที่ด้วยข้อมูลของวิดีโอนี้ ดำเนินการต่อ?") \
+                    self, tr("บันทึกวิดีโอ"), tr("ข้อมูลในกราฟชุดก่อนหน้าจะถูกแทนที่ด้วยข้อมูลของวิดีโอนี้ ดำเนินการต่อ?")) \
                     != QMessageBox.StandardButton.Yes:
                 self.btn_rec.set_recording(False)
                 return
@@ -920,7 +953,7 @@ class MainWindow(QMainWindow):
             self.trend._t_start, self.trend._paused_total, self.trend._pause_t = time.time(), 0.0, None
             self.trend._sync_buttons()
         self.btn_rec.set_recording(True, "00:00:00")
-        self.toast(f"เริ่มบันทึกวิดีโอ  {v.video_path.name}", "rec")
+        self.toast(tr("เริ่มบันทึกวิดีโอ  {name}", name=v.video_path.name), "rec")
         self._ui_tick()
 
     # =========================================================== settings
@@ -970,8 +1003,8 @@ class MainWindow(QMainWindow):
         self.roi = tuple(data["roi"]) if data.get("roi") else None
         self._spots_changed()
 
-    def _save_settings(self):
-        data = {}
+    def _save_settings(self, lang=None):
+        data = {"language": lang or language()}
         for k, w in self._widgets().items():
             if isinstance(w, QComboBox):
                 data[k] = w.currentIndex() if k in self.INDEX_COMBOS else w.currentText()
@@ -989,8 +1022,11 @@ class MainWindow(QMainWindow):
             pass
 
     def closeEvent(self, e):
+        if getattr(self, "_restarting", False):
+            e.accept()
+            return
         busy = self.capture.video is not None or self.recorder.state != "idle"
-        if busy and QMessageBox.question(self, "กำลังบันทึก", "หยุดบันทึกและปิดโปรแกรม?") \
+        if busy and QMessageBox.question(self, tr("กำลังบันทึก"), tr("หยุดบันทึกและปิดโปรแกรม?")) \
                 != QMessageBox.StandardButton.Yes:
             e.ignore()
             return

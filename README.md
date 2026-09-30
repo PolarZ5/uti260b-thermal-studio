@@ -1,17 +1,105 @@
-# UTi260B Thermal Studio (PC)
+# UTi260B Thermal Studio
+
+**English** | [ภาษาไทย](README.th.md)
 
 ![icon](uti260b/gui/thermometer.png)
 
-## ดาวน์โหลด (Windows)
+A Windows program for the **UNI-T UTi260B** thermal camera. It shows the live image on a PC, measures per-pixel temperatures, logs readings over time, records snapshots and video, and raises temperature alarms. The interface is available in English and Thai.
 
-ดาวน์โหลด **`UTi260B-Thermal-Studio.exe`** จากหน้า [Releases](https://github.com/PolarZ5/uti260b-thermal-studio/releases/latest) แล้วดับเบิลคลิกได้เลย ไม่ต้องติดตั้ง Python
-- ไฟล์ขนาดประมาณ 95 MB ครั้งแรกอาจใช้เวลาเปิดราว 10–30 วินาที
-- ไฟล์ยังไม่ได้เซ็นดิจิทัล ถ้า Windows SmartScreen เตือน ให้กด "More info" → "Run anyway"
-- ค่าตั้งเก็บที่ `%APPDATA%\UTi260B Thermal Studio\` ไฟล์ที่บันทึกจะอยู่ที่ `Documents\UTi260B Captures\` (เปลี่ยนโฟลเดอร์ได้ในโปรแกรม)
+## Download (Windows)
 
-โปรแกรมบน Windows สำหรับกล้องถ่ายภาพความร้อน **UNI-T UTi260B** ใช้แสดงภาพสด วัดอุณหภูมิ บันทึกข้อมูล และตั้งการแจ้งเตือนจากคอมพิวเตอร์
+Download **`UTi260B-Thermal-Studio.exe`** from [Releases](https://github.com/PolarZ5/uti260b-thermal-studio/releases/latest) and double-click it. Python is not required.
+- The file is about 95 MB. The first launch can take 10–30 seconds while it unpacks.
+- The .exe is not code-signed. If Windows SmartScreen warns, click **More info → Run anyway**.
+- Settings are stored in `%APPDATA%\UTi260B Thermal Studio\`. Captures go to `Documents\UTi260B Captures\` by default, and you can change the folder in the program.
 
-## เริ่มใช้งาน
+## Camera setup
+
+1. On the camera: `SET` → Settings → **USB Mode → USB Camera**
+2. Image Mode → **Thermal**. In Fusion/PIP mode, the visible-light part of the image cannot be measured.
+3. Keep **Center Spot** on. If you also turn on **Point Temperature**, the program reads those points and uses them for calibration.
+4. Plug in the USB-C cable. The program finds and connects to the camera automatically.
+
+> Use a plain 5 V USB-A port. There are reports that USB-C PD fast chargers can damage the camera's power circuit.
+
+No camera yet? Open **⋯ → Demo mode**, which plays the sample images in `samples/`.
+
+## Features
+
+**Main window**
+- **Top bar:**
+  - camera / connect
+  - **📷 Snapshot**
+  - **⏺ Record video**
+  - 📁 output folder (click to open or change)
+  - ⋯ (demo, open BMP, find cameras, UVC driver settings)
+  - **TH / EN** language
+  - ⚙ **Advanced**
+- **Above the image:**
+  - tools: Spot / ROI / Exclude
+  - eraser (clear spots, ROI, excluded areas)
+  - freeze
+- **Right panel:**
+  - Max / Min / Center / Mean cards
+  - spot table (click a spot's coordinates to edit them)
+  - the camera's Point Temperature readings
+  - palette and high-temperature alarm
+- **Advanced** (hidden by default):
+  - temperature scale, unit and calibration options
+  - clean image and locked color range
+  - low-temperature alarm
+  - video size
+  - capture backend and rotation
+
+**Graph and logging**
+- **Logging controls:** press **● Start logging** to record Max, Min, Center, Mean, ROI, spots P1–P6 and camera points P1–P3 at an interval you choose, from every frame up to once a minute. Pause and resume are available.
+- **Show or hide lines:** click the line buttons above the graph. Your choice is remembered between sessions.
+- **Reading the graph:** hover to read every line at that moment. The time window shows all data or the last 1, 5, 15 or 60 minutes, and a table shows last / min / max / mean for each line.
+- **Export CSV** works at any time. When "write the CSV while logging" is on (Advanced › Recording), rows are written as they come in, so nothing is lost if the program closes unexpectedly.
+
+**Files**
+| Action | Files | Notes |
+|---|---|---|
+| 📷 Snapshot | `uti_<time>_view.png`, `_screen.png`, `_temps.csv` (every pixel), `_meta.json` | The screen flashes, and a notice offers to open the folder. |
+| ⏺ Record video | `uti_<time>.mp4` + `uti_<time>.csv` (same name) | The button turns red with a timer, and a REC badge appears on the image but is not written into the video. The video length matches real time. |
+| ● Start logging (graph) | `uti_<time>_data.csv` | Time series only. |
+
+Shortcuts: `Space` freeze · `Ctrl+S` snapshot · `Ctrl+R` record video · `Ctrl+L` start/stop logging · `Ctrl+1/2/3` tools
+
+**Time-series CSV columns**
+`time, elapsed_s, unit, scale_min, scale_max, scale_source, max, max_x, max_y, min, min_x, min_y, mean, center, roi_max, roi_min, roi_mean, P1, P1_x, P1_y … P6_y, cam1, cam1_x, cam1_y … cam3_y`
+- Temperatures are in the selected unit.
+- Coordinates are pixels on the 240×320 image.
+- An empty cell means the value could not be measured in that row.
+- Export drops columns that have no data.
+
+## How the measurement works (please read)
+
+In USB Camera mode the UTi260B sends **its screen as color video (UVC)**, not raw temperature data. The program works backwards from the image:
+
+1. It finds the color bar on the right to learn which palette the camera uses.
+2. It maps every pixel's color back to a position on that palette (0–254).
+3. With OCR, it reads the numbers the camera prints on its screen:
+   - the Max/Min at the ends of the color bar
+   - the center reading "+ xx.x°C" at the top left
+   - the labels of the camera's Point Temperature markers
+4. It converts palette positions to temperatures with a **monotone multi-point calibration** through all of those readings: Min → points → Max.
+5. It locates the camera's hot and cold markers (red and green brackets), so Max and Min come straight from the camera with the camera's positions.
+
+Result with a real camera: Max, Min and Center match the camera's display. Without the center calibration, values in the middle of the range were about 5 °C off, because the camera boosts contrast before coloring.
+
+Stream details:
+- The camera appears as "UVC Camera" (USB VID 1D6B / PID 0102).
+- Frames are 240×321 at about 10 fps. The extra padding row is removed.
+- Only the DirectShow backend works.
+
+**Limitations**
+- **Max / Min / Center / camera points match the camera** because they are the camera's own readings. Every other pixel is an estimate. With a wide temperature range in the scene it can be 1–3 °C off ([background](https://github.com/Santi-hr/UNI-T-Thermal-Utilities/blob/main/docs/temperature_issue.md)). A narrow range is more accurate.
+- **Pixels covered by the camera's own text or crosshairs are excluded.** The program detects them automatically, and you can also drag **Exclude** boxes over them.
+- **If the camera menu is left open**, it covers the Min label. The program warns you to press Back.
+- **Controlling the camera from the PC is not possible:** the UTi260B has no command channel over USB, and UNI-T's own UTi Thermal Analyzer only mirrors the screen. Palette, emissivity, gain, the camera's alarm and saving to SD are set on the camera. This program provides its own PC-side controls instead: palette, color range, spots, ROI, alarms, recording, and the Windows UVC driver dialog.
+
+## Run from source
 
 ```bash
 pip install -r requirements.txt
@@ -21,98 +109,13 @@ pip install -r requirements.txt
 python -m uti260b
 ```
 
-(หรือดับเบิลคลิก `run.bat` และถ้าต้องการ shortcut บนเดสก์ท็อปพร้อมไอคอน ให้รัน `powershell -File tools\make_shortcut.ps1`)
+You can also double-click `run.bat`. For a desktop shortcut with the icon, run `powershell -File tools\make_shortcut.ps1`.
 
-### ตั้งค่าที่ตัวกล้อง
-1. `SET` → Settings → **USB Mode → USB Camera**
-2. Image Mode → **Thermal** (ถ้าเป็น Fusion/PIP ส่วนที่เป็นภาพกล้องธรรมดาจะวัดอุณหภูมิไม่ได้)
-3. เปิด **Center Spot** ไว้ ถ้าเปิด **Point Temperature** ด้วย โปรแกรมจะอ่านค่าจุดเหล่านั้นมาช่วยสอบเทียบ ส่วน ROI ของกล้องปิดได้ เพื่อให้มีตัวหนังสือบังภาพน้อยลง
-4. เสียบสาย USB-C เข้าคอม แล้วในโปรแกรมกด **ค้นหาอุปกรณ์ → เชื่อมต่อ**
+When connecting a camera for the first time, `python probe.py` writes device names, VID/PID, supported formats, sample frames and decoder results to `probe_report/`.
 
-> ใช้พอร์ต USB-A 5V ธรรมดา มีรายงานว่าที่ชาร์จเร็ว USB-C PD อาจทำให้วงจรไฟของกล้องเสียหาย
+## Build the .exe
 
-ถ้ายังไม่มีกล้อง ให้กด **โหมดสาธิต** ได้ โปรแกรมจะเล่นภาพตัวอย่างใน `samples/` แทน
-
-## ความสามารถ
-
-GUI เขียนด้วย PyQt6 ธีมมืด กราฟใช้ pyqtgraph ไอคอนโปรแกรมเป็นรูปเทอร์โมมิเตอร์
-
-**หน้าจอหลัก** มีเฉพาะปุ่มที่ใช้บ่อย:
-- **แถบบน:** เลือกกล้อง/เชื่อมต่อ · **📷 ถ่ายภาพ** · **⏺ บันทึกวิดีโอ** · 📁 โฟลเดอร์ปลายทาง (คลิกเพื่อเปิดหรือเปลี่ยน) · ⋯ (โหมดสาธิต, เปิด BMP, ค้นหากล้อง, ตั้งค่าไดรเวอร์) · ⚙ **ขั้นสูง**
-- **เหนือภาพ:** เครื่องมือ จุดวัด / ROI / ไม่วัด · ปุ่มยางลบ (ล้างจุด/ROI/พื้นที่ไม่วัด) · หยุดภาพ
-- **แผงขวา:** การ์ด Max / Min / จุดกลาง / เฉลี่ย, ตารางจุดวัด, ค่า Point Temperature ของกล้อง, palette และแจ้งเตือนอุณหภูมิสูง
-- **ขั้นสูง** (ซ่อนไว้): สเกลอุณหภูมิ, หน่วย, การสอบเทียบ, clean/ล็อกช่วงสี, แจ้งเตือนอุณหภูมิต่ำ, ขนาดวิดีโอ, backend/การหมุนภาพ
-
-**การบันทึก**
-| | ได้ไฟล์ | หมายเหตุ |
-|---|---|---|
-| 📷 ถ่ายภาพ | `uti_<เวลา>_view.png`, `_screen.png`, `_temps.csv` (อุณหภูมิทุกพิกเซล), `_meta.json` | จอจะแฟลช และมีแจ้งเตือนพร้อมปุ่มเปิดโฟลเดอร์ |
-| ⏺ บันทึกวิดีโอ | `uti_<เวลา>.mp4` + `uti_<เวลา>.csv` (ชื่อเดียวกัน) | ปุ่มจะเป็นสีแดงพร้อมตัวจับเวลา และมีป้าย REC บนภาพ (ป้ายนี้ไม่ติดไปในไฟล์วิดีโอ) ความยาววิดีโอเท่ากับเวลาจริง |
-| ● บันทึกข้อมูล (แผงกราฟ) | `uti_<เวลา>_data.csv` | บันทึกค่าตามเวลาอย่างเดียว มีปุ่มพัก/ต่อ และ Export CSV ได้ทุกเมื่อ |
-
-ทุกไฟล์จะไปอยู่ในโฟลเดอร์ปลายทางที่เลือก (ค่าเริ่มต้นคือ `captures/`)
-
-ปุ่มลัด: `Space` หยุด/เล่นภาพ · `Ctrl+S` ถ่ายภาพ · `Ctrl+R` บันทึกวิดีโอ · `Ctrl+L` บันทึกข้อมูล · `Ctrl+1/2/3` เครื่องมือ
-
-ค่าที่ตั้งไว้ เช่น จุดวัด ROI พื้นที่ไม่วัด และการแจ้งเตือน จะถูกเก็บใน `settings.json` ส่วนไฟล์ที่บันทึกจะอยู่ใน `captures/`
-
-### คอลัมน์ใน CSV ค่าตามเวลา
-`time, elapsed_s, unit, scale_min, scale_max, scale_source, max, max_x, max_y, min, min_x, min_y, mean, center, roi_max, roi_min, roi_mean, P1, P1_x, P1_y … P6, P6_x, P6_y`
-(หน่วยองศาตามที่เลือก, พิกัดเป็นพิกเซลบนภาพ 240×320, ช่องว่าง = วัดไม่ได้ในแถวนั้น ตอน export จะตัดคอลัมน์ที่ไม่มีข้อมูลออก)
-
-## หลักการวัดและข้อจำกัด (ควรอ่าน)
-
-ในโหมด USB Camera กล้องจะส่ง**ภาพหน้าจอเป็นวิดีโอสี** (UVC) ไม่ได้ส่งค่าอุณหภูมิดิบ โปรแกรมจึงคำนวณย้อนกลับจากภาพดังนี้
-
-1. หาแถบสีด้านขวาของจอ เพื่อรู้ว่ากล้องใช้ palette อะไร
-2. แปลงสีของแต่ละพิกเซลกลับเป็นตำแหน่งบน palette (0–254)
-3. อ่านตัวเลข Max/Min ที่หัวและท้ายแถบสี และค่าจุดกลาง "+ xx.x°C" ที่มุมซ้ายบนด้วย OCR
-4. แปลงเป็นอุณหภูมิด้วยการสอบเทียบ 3 จุด คือ Min → จุดกลาง → Max ถ้าไม่มีค่าจุดกลางจะใช้เส้นตรง Min → Max
-
-ผลทดสอบกับกล้องจริง: จุดกลาง 31.5 °C ตรงกับกล้อง, Max 41.6 (กล้อง 41.7), Min 26.6 (กล้อง 26.5) ถ้าไม่ใช้ค่าจุดกลาง ค่าที่ได้จะคลาดประมาณ 5 °C
-**ควรเปิด Center Spot ในตัวกล้องไว้** เพื่อให้โปรแกรมใช้ค่าจุดกลางสอบเทียบได้ (ปิดได้ในแท็บ "การวัด")
-
-สัญญาณจากกล้อง: UVC "UVC Camera" (USB VID 1D6B / PID 0102) ขนาด 240×321 (มีแถวว่างด้านล่าง 1 แถวที่โปรแกรมตัดออกให้) ประมาณ 10 fps ใช้ได้เฉพาะ DirectShow
-ถ้าเปิดเมนูของกล้องค้างไว้ แถบเมนูจะบังค่า Min โปรแกรมจะเตือนให้กด Back
-
-ข้อจำกัด:
-- **ค่า Max/Min/จุดกลาง ตรงกับกล้อง** เพราะอ่านมาจากค่าที่กล้องวัดเอง ส่วนค่าที่จุดอื่นเป็นการประมาณ เพราะกล้องเร่งคอนทราสต์ก่อนลงสี การสอบเทียบ 3 จุดช่วยให้แม่นขึ้น แต่ในภาพที่ช่วงอุณหภูมิกว้างยังอาจคลาดได้ 1–3 °C ([ที่มา](https://github.com/Santi-hr/UNI-T-Thermal-Utilities/blob/main/docs/temperature_issue.md)) ถ้าช่วงอุณหภูมิในภาพแคบ ค่าจะแม่นขึ้น
-- พิกเซลที่ถูกตัวหนังสือหรือเป้าเล็งของกล้องบังจะไม่ถูกนำมาวัด โปรแกรมตรวจจับส่วนที่บังได้เอง หรือจะลากกรอบ "พื้นที่ที่ไม่ต้องวัด" เพิ่มเองก็ได้
-- **การควบคุมกล้องจาก PC:** UTi260B ไม่มีช่องทางรับคำสั่งจากคอมพิวเตอร์ โปรแกรม UTi Thermal Analyzer ของ UNI-T เองก็ทำได้แค่ฉายภาพ ดังนั้นการตั้ง palette, emissivity, gain, alarm หรือการกดถ่ายภาพลง SD ต้องทำที่ตัวกล้อง โปรแกรมนี้จึงทำเรื่องการควบคุมทั้งหมดฝั่ง PC แทน ได้แก่ palette, ช่วงสี, จุดวัด, ROI, การแจ้งเตือน, การบันทึก และปุ่ม "ตั้งค่าไดรเวอร์" ที่เปิดหน้าตั้งค่า UVC ของ Windows
-
-## เมื่อต่อกล้องจริงครั้งแรก
-
-รันเครื่องมือตรวจสอบ
-
-```bash
-python probe.py
-```
-
-เครื่องมือนี้จะบันทึกชื่ออุปกรณ์ VID/PID, ความละเอียดและรูปแบบสัญญาณที่กล้องรองรับ, ภาพตัวอย่าง และผลการถอดรหัส ไว้ใน `probe_report/` ถ้าภาพสดมีขนาดหรือหน้าตาต่างจากที่คาดไว้ (เช่น ไม่เห็นแถบสี หรือ OCR อ่านเลขไม่ได้) ให้ส่งโฟลเดอร์นี้มาเพื่อปรับจูนต่อ
-
-## โครงสร้างโปรเจกต์
-
-```
-uti260b/
-  gui/          หน้าจอโปรแกรม PyQt6 (window, view = ภาพ+เครื่องหมาย, trend = กราฟ+บันทึก, theme)
-  measure.py    วัดค่าในแต่ละเฟรม (Max/Min/จุดกลาง/จุดวัด/ROI)
-  series.py     บันทึกค่าตามเวลา + CSV
-  render.py     ลงสีภาพสำหรับแสดงผล
-  decoder.py    แปลงภาพ → อุณหภูมิรายพิกเซล, ตรวจจับ overlay, สถิติ
-  osd.py        อ่านตัวเลข Max/Min ข้างแถบสี
-  sources.py    รับภาพจากกล้อง (OpenCV DirectShow/MSMF) และโหมดสาธิต
-  bmpfile.py    อ่านไฟล์ .bmp จากกล้อง (มีข้อมูลอุณหภูมิฝัง)
-  palettes.py   palette ของกล้องและ palette สำหรับแสดงผล
-  layout.py     ตำแหน่งองค์ประกอบบนจอกล้อง (240×320)
-  assets.npz    palette + แม่แบบตัวเลข (สร้างด้วย tools/build_assets.py)
-probe.py        ตรวจสอบกล้องที่ต่ออยู่
-tools/selftest.py   ทดสอบตัวถอดรหัสกับภาพตัวอย่าง (จำลอง YUYV + ภาพหมุน)
-samples/        ภาพตัวอย่างจาก Santi-hr/UNI-T-Thermal-Utilities (MIT)
-```
-
-## สร้าง .exe เอง
-
-ใช้ venv ที่ติดตั้งแค่แพ็กเกจที่จำเป็น ไฟล์ .exe จะได้เล็ก
+Use a clean virtual environment so the .exe stays small:
 
 ```bash
 python -m venv .venv
@@ -126,16 +129,36 @@ python -m venv .venv
 .venv\Scripts\pyinstaller UTi260B-Thermal-Studio.spec
 ```
 
-ผลลัพธ์อยู่ที่ `dist/UTi260B-Thermal-Studio.exe`
+The result is `dist/UTi260B-Thermal-Studio.exe`.
 
-## ขอบคุณ
-- รูปแบบไฟล์ BMP และภาพตัวอย่าง: [Santi-hr/UNI-T-Thermal-Utilities](https://github.com/Santi-hr/UNI-T-Thermal-Utilities) (MIT)
-- ข้อมูลโหมด USB Camera: [leftger/uti-thermal-viewer](https://github.com/leftger/uti-thermal-viewer)
+## Project layout
 
-## ปัญหาที่พบบ่อย
-- **กล้องต่อแล้วหลุดทุก 4–5 วินาที:** ให้เปลี่ยนพอร์ต USB หรือเปลี่ยนสาย (ตอนทดสอบ แก้ได้ด้วยการย้ายพอร์ต)
-- **ไม่มีอะไรขึ้นเลยตอนเสียบ:** อาจเป็นสายชาร์จอย่างเดียว หรือกล้องยังไม่ได้ตั้ง USB Mode = USB Camera
-- **เฝ้าดูการเชื่อมต่อ:** `python tools/watch_camera.py` จะแสดงเวลาที่กล้องต่อ/หลุด และลองดึงภาพให้
+```
+uti260b/
+  gui/          PyQt6 interface (window, view = image + markers, trend = graph + logging, capture, theme, icons)
+  decoder.py    frame -> per-pixel temperatures, overlay masking, calibration
+  osd.py        OCR of the color-bar labels and the large center reading
+  markers.py    the camera's hot/cold trackers and Point Temperature markers
+  measure.py    per-frame measurements (max/min/center/spots/ROI/camera points)
+  series.py     time-series recording + CSV
+  sources.py    camera capture (OpenCV DirectShow/MSMF) and the demo source
+  bmpfile.py    reader for the camera's radiometric .bmp files
+  i18n.py       Thai / English text (i18n_en.py holds the English strings)
+  palettes.py, render.py, layout.py, paths.py
+  assets.npz    palettes + glyph templates (built by tools/build_assets.py)
+probe.py        diagnostics for a connected camera
+tools/          selftest, asset builder, connection watcher, shortcut script
+samples/        sample images (see License)
+```
+
+## Troubleshooting
+- **The camera connects and drops every 4–5 seconds:** try another USB port or cable. Moving to a different port fixed it during testing.
+- **Nothing happens when plugging in:** the cable may be charge-only, or the camera is not set to USB Mode = USB Camera.
+- **Watch the connection:** `python tools/watch_camera.py` logs connects and disconnects and tries to grab frames.
+
+## Credits
+- BMP format and sample images: [Santi-hr/UNI-T-Thermal-Utilities](https://github.com/Santi-hr/UNI-T-Thermal-Utilities) (MIT)
+- USB Camera mode notes: [leftger/uti-thermal-viewer](https://github.com/leftger/uti-thermal-viewer)
 
 ## License
-[MIT](LICENSE) — ภาพตัวอย่าง `samples/IMG_*.bmp` มาจาก [Santi-hr/UNI-T-Thermal-Utilities](https://github.com/Santi-hr/UNI-T-Thermal-Utilities) ภายใต้ MIT License ของเจ้าของเดิม (ดู `samples/LICENSE-Santi-hr.txt`)
+[MIT](LICENSE). The sample images `samples/IMG_*.bmp` come from [Santi-hr/UNI-T-Thermal-Utilities](https://github.com/Santi-hr/UNI-T-Thermal-Utilities) under its own MIT License (see `samples/LICENSE-Santi-hr.txt`).

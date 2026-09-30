@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QButtonGroup, QFrame, QGraphicsOpacityEffect, QHBox
 
 from .icons import icon
 from .theme import ACCENT, BORDER, CARD, MUTED, TEXT
+from ..i18n import tr
 
 
 class Toast(QFrame):
@@ -84,7 +85,7 @@ class Toast(QFrame):
 class RecordButton(QPushButton):
     """Idle: '● บันทึกวิดีโอ'. Recording: red pill with a pulsing dot and the elapsed time."""
 
-    def __init__(self, idle_text="บันทึกวิดีโอ", parent=None):
+    def __init__(self, idle_text=tr("บันทึกวิดีโอ"), parent=None):
         super().__init__(parent)
         self.idle_text = idle_text
         self.setCheckable(True)
@@ -100,7 +101,7 @@ class RecordButton(QPushButton):
             self._blink = not self._blink
             self.setIcon(icon("record", "#ffffff" if self._blink else "#ffb3b3", 16))
             self.setText(f"  REC  {elapsed}")
-            self.setToolTip("หยุดบันทึก")
+            self.setToolTip(tr("หยุดบันทึก"))
             self.setObjectName("RecOn")
         else:
             self.setIcon(icon("record", "#ff4d4f", 16))

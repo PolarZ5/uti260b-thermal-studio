@@ -9,6 +9,7 @@ import numpy as np
 from ..decoder import ThermalFrame
 from ..measure import Measurement
 from ..series import SeriesRecorder
+from ..i18n import tr
 
 
 def stamp() -> str:
@@ -32,7 +33,7 @@ class VideoSession:
         self.size = size
         self.writer = cv2.VideoWriter(str(self.video_path), cv2.VideoWriter_fourcc(*"mp4v"), self.fps, size)
         if not self.writer.isOpened():
-            raise RuntimeError(f"เขียนไฟล์วิดีโอไม่ได้: {self.video_path}")
+            raise RuntimeError(tr("เขียนไฟล์วิดีโอไม่ได้: {path}", path=self.video_path))
         self.series = series
         self.feed = feed                        # False when the graph's recorder already gets every frame
         self.t0 = time.time()
