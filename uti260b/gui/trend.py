@@ -28,16 +28,29 @@ class Chip(QPushButton):
     """Checkable series toggle with the series colour."""
 
     def __init__(self, key, text):
-        super().__init__(text)
+        super().__init__()
         self.key = key
+        self.label = text
         self.setCheckable(True)
         self.setChecked(key in DEFAULT_ON)
         col = COLORS[key]
         self.setStyleSheet(f"""
-            QPushButton {{ background: {CARD}; border: 1px solid {BORDER}; border-radius: 11px;
-                           padding: 3px 10px; color: {MUTED}; font-size: 8.5pt; }}
-            QPushButton:checked {{ border: 1px solid {col}; color: {TEXT}; }}
+            QPushButton {{ background: transparent; border: 1px dashed {BORDER}; border-radius: 11px;
+                           padding: 3px 10px; color: {MUTED}; font-size: 8.5pt; text-decoration: line-through; }}
+            QPushButton:checked {{ background: {CARD}; border: 1px solid {col}; color: {TEXT};
+                                   text-decoration: none; }}
         """)
+        self.toggled.connect(self._update_text)
+        self._update_text()
+
+    def setText(self, text):                    # keep the on/off marker in front of the label
+        self.label = text
+        self._update_text()
+
+    def _update_text(self, *_):
+        on = self.isChecked()
+        super().setText(("● " if on else "○ ") + self.label)
+        self.setToolTip(f"คลิกเพื่อ{'ซ่อน' if on else 'แสดง'}เส้น {self.label}")
 
 
 class TrendPanel(QWidget):

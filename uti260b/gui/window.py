@@ -962,6 +962,9 @@ class MainWindow(QMainWindow):
                 pass
         if data.get("folder"):
             self.capture.folder = Path(data["folder"])
+        for key, on in data.get("series_on", {}).items():
+            if key in self.trend.chips:
+                self.trend.chips[key].setChecked(bool(on))
         self.decoder.exclude_rects = [tuple(r) for r in data.get("masks", [])]
         self.spots = [Spot(*s) for s in data.get("spots", [])][:MAX_SPOTS]
         self.roi = tuple(data["roi"]) if data.get("roi") else None
@@ -976,6 +979,7 @@ class MainWindow(QMainWindow):
                 data[k] = w.value()
             else:
                 data[k] = w.isChecked()
+        data["series_on"] = {k: c.isChecked() for k, c in self.trend.chips.items()}
         data.update(folder=str(self.capture.folder), masks=self.decoder.exclude_rects, roi=self.roi,
                     spots=[[s.slot, s.x, s.y] for s in self.spots])
         try:
