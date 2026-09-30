@@ -1,0 +1,6 @@
+numpy>=1.24
+opencv-python-headless>=4.8   # or opencv-python
+PyQt6>=6.5
+pyqtgraph>=0.13
+pygrabber>=0.2      # camera names on Windows (optional)
+comtypes>=1.2       # needed by pygrabber
