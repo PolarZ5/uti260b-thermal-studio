@@ -136,3 +136,6 @@ python -m venv .venv
 - **กล้องต่อแล้วหลุดทุก 4–5 วินาที:** ให้เปลี่ยนพอร์ต USB หรือเปลี่ยนสาย (ตอนทดสอบ แก้ได้ด้วยการย้ายพอร์ต)
 - **ไม่มีอะไรขึ้นเลยตอนเสียบ:** อาจเป็นสายชาร์จอย่างเดียว หรือกล้องยังไม่ได้ตั้ง USB Mode = USB Camera
 - **เฝ้าดูการเชื่อมต่อ:** `python tools/watch_camera.py` จะแสดงเวลาที่กล้องต่อ/หลุด และลองดึงภาพให้
+
+## License
+[MIT](LICENSE) — ภาพตัวอย่าง `samples/IMG_*.bmp` มาจาก [Santi-hr/UNI-T-Thermal-Utilities](https://github.com/Santi-hr/UNI-T-Thermal-Utilities) ภายใต้ MIT License ของเจ้าของเดิม (ดู `samples/LICENSE-Santi-hr.txt`)
